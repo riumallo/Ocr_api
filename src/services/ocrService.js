@@ -16,6 +16,21 @@ const isImageContent = (headers = {}) => {
   return ct && ct.toLowerCase().startsWith('image/');
 };
 
+const normalizeOcrText = (text = '') => {
+  // Limpia caracteres de control y colapsa espacios/nuevas líneas para mejor lectura.
+  const withoutControl = text.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+  const collapsedSpaces = withoutControl.replace(/[ \t]+/g, ' ');
+  return collapsedSpaces.replace(/\n{3,}/g, '\n\n').trim();
+};
+
+const normalizeRut = (rut = '') => {
+  const fixed = rut
+    .replace(/[^0-9kK\.\-]/g, '') // deja solo caracteres válidos
+    .replace(/[Oo]/g, '0')
+    .replace(/[lI]/g, '1');
+  return fixed;
+};
+
 exports.procesarOCR = async (req, res) => {
   const { imageUrl } = req.body || {};
 
@@ -64,8 +79,10 @@ exports.procesarOCR = async (req, res) => {
       },
     });
 
-    const texto = result.data.text || '';
-    const ruts = extraerRut(texto);
+    const textoCrudo = result.data.text || '';
+    const texto = normalizeOcrText(textoCrudo);
+    const rutsDetectados = extraerRut(texto).map(normalizeRut);
+    const ruts = Array.from(new Set(rutsDetectados.filter(Boolean)));
 
     return res.json({
       ok: true,
