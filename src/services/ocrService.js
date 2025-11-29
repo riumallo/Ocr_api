@@ -17,7 +17,7 @@ const isImageContent = (headers = {}) => {
 };
 
 const normalizeOcrText = (text = '') => {
-  // Limpia caracteres de control y colapsa espacios/nuevas líneas para mejor lectura.
+  // Limpia caracteres de control y colapsa espacios/nuevas lineas para mejor lectura.
   const withoutControl = text.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
   const collapsedSpaces = withoutControl.replace(/[ \t]+/g, ' ');
   return collapsedSpaces.replace(/\n{3,}/g, '\n\n').trim();
@@ -25,10 +25,23 @@ const normalizeOcrText = (text = '') => {
 
 const normalizeRut = (rut = '') => {
   const fixed = rut
-    .replace(/[^0-9kK\.\-]/g, '') // deja solo caracteres válidos
+    .replace(/[^0-9kK\.\-]/g, '') // deja solo caracteres validos
     .replace(/[Oo]/g, '0')
     .replace(/[lI]/g, '1');
   return fixed;
+};
+
+const preprocessImage = async (inputPath) => {
+  // Prepara la imagen para OCR: grises, mejora contraste y binariza para resaltar bordes/caracteres.
+  return sharp(inputPath)
+    .grayscale()
+    .normalize()
+    .sharpen()
+    .linear(1.2, -10) // aumenta contraste global
+    .median(1) // reduce ruido sal/pimienta
+    .resize({ width: 1400, withoutEnlargement: true })
+    .threshold(140) // binariza (blanco y negro) para perfilar bordes
+    .toBuffer();
 };
 
 exports.procesarOCR = async (req, res) => {
@@ -50,7 +63,7 @@ exports.procesarOCR = async (req, res) => {
       const ct = response.headers['content-type'] || 'desconocido';
       return res.status(400).json({
         ok: false,
-        error: 'La URL no devuelve una imagen (content-type inválido)',
+        error: 'La URL no devuelve una imagen (content-type invalido)',
         detalle: ct,
       });
     }
@@ -59,11 +72,7 @@ exports.procesarOCR = async (req, res) => {
 
     let processed;
     try {
-      processed = await sharp(filePath)
-        .grayscale()
-        .normalize()
-        .resize({ width: 1200, withoutEnlargement: true })
-        .toBuffer();
+      processed = await preprocessImage(filePath);
     } catch (imgErr) {
       if (shouldLog()) console.error('Error al procesar imagen', imgErr);
       return res.status(400).json({
