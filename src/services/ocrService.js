@@ -32,15 +32,13 @@ const normalizeRut = (rut = '') => {
 };
 
 const preprocessImage = async (inputPath) => {
-  // Prepara la imagen para OCR: grises, mejora contraste y binariza para resaltar bordes/caracteres.
+  // Prepara la imagen para OCR con ajustes suaves: grises, normalización, reducción de ruido y nitidez ligera.
   return sharp(inputPath)
     .grayscale()
     .normalize()
+    .median(1)
     .sharpen()
-    .linear(1.2, -10) // aumenta contraste global
-    .median(1) // reduce ruido sal/pimienta
     .resize({ width: 1400, withoutEnlargement: true })
-    .threshold(140) // binariza (blanco y negro) para perfilar bordes
     .toBuffer();
 };
 
@@ -82,10 +80,12 @@ exports.procesarOCR = async (req, res) => {
       });
     }
 
-    const result = await Tesseract.recognize(processed, 'spa', {
-      logger: (msg) => {
-        if (shouldLog()) console.log(msg);
-      },
+    const result = await Tesseract.recognize(processed, 'spa+eng', {
+      logger: shouldLog() ? console.log : undefined,
+      preserve_interword_spaces: '1',
+      tessedit_pageseg_mode: '6',
+      user_defined_dpi: '300',
+      tessedit_char_whitelist: '0123456789Kk.-ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     });
 
     const textoCrudo = result.data.text || '';
